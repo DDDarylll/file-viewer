@@ -1,42 +1,71 @@
-# file-viewer
+# File Viewer
 
-This template should help get you started developing with Vue 3 in Vite.
+基于浏览器的本地文件查看器，使用 [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) 直接读取本地文件夹，**无需上传、无需服务器**，所有文件均在本地处理。
 
-## Recommended IDE Setup
+## 功能特性
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- **文件夹选择**：通过系统原生选择器选择本地目录
+- **文件树浏览**：树形展示目录结构，支持展开/折叠
+- **多标签页**：同时打开多个文件，标签切换
+- **代码编辑**：文本文件支持语法高亮、编辑与保存
+- **图片预览**：支持 png、jpg、gif、webp、svg 等常见图片格式
+- **可调侧边栏**：拖拽调整文件树宽度
 
-## Recommended Browser Setup
+### 文本编辑器功能
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+- 语法高亮（JS/TS、JSON、HTML/CSS、Python、C/C++、Markdown、YAML、Dockerfile 等）
+- 查找（Ctrl+F）
+- 自动换行
+- 编辑模式切换，支持保存回磁盘
 
-## Type Support for `.vue` Imports in TS
+## 技术栈
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+- **Vue 3** + **TypeScript**
+- **Vite**
+- **CodeMirror 6**
 
-## Customize configuration
+## 浏览器支持
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+需要支持 File System Access API 的浏览器，推荐：
 
-## Project Setup
+- Chrome 86+
+- Edge 86+
 
-```sh
+> Safari、Firefox 目前不支持该 API。
+
+## 快速开始
+
+```bash
+# 安装依赖
 npm install
-```
 
-### Compile and Hot-Reload for Development
-
-```sh
+# 开发模式
 npm run dev
-```
 
-### Type-Check, Compile and Minify for Production
-
-```sh
+# 构建
 npm run build
+
+# 预览构建结果
+npm run preview
 ```
+
+## 项目结构
+
+```
+src/
+├── App.vue              # 主应用
+├── components/
+│   ├── AppHeader/       # 顶部栏（选择文件夹、错误提示）
+│   ├── FileTree/        # 文件树
+│   ├── FileTabs/        # 文件标签页
+│   ├── EditorToolbar/   # 编辑器工具栏
+│   ├── CodeEditor/      # 代码编辑器（CodeMirror）
+│   ├── ImageViewer/     # 图片预览
+│   └── Toast/           # 提示消息
+├── types/               # 类型定义
+└── utils/               # 工具函数
+```
+
+## License
+
+MIT
