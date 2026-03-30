@@ -5,6 +5,8 @@ defineProps<{
   file: OpenedFile | null
   wordWrap: boolean
   canEdit: (file: OpenedFile) => boolean
+  isMarkdownFile?: boolean
+  markdownPreviewSplit?: boolean
 }>()
 
 defineEmits<{
@@ -15,6 +17,7 @@ defineEmits<{
   copyPath: []
   toggleWordWrap: []
   toggleFind: []
+  toggleMarkdownPreview: []
   downloadImage: []
 }>()
 </script>
@@ -50,6 +53,16 @@ defineEmits<{
         </button>
         <button class="toolbar-btn" @click="$emit('toggleFind')" title="查找 (Ctrl+F)">
           查找
+        </button>
+        <button
+          v-if="isMarkdownFile"
+          type="button"
+          class="toolbar-btn"
+          :class="{ active: markdownPreviewSplit }"
+          title="分屏 Markdown 预览"
+          @click="$emit('toggleMarkdownPreview')"
+        >
+          MD 预览
         </button>
       </div>
     </template>

@@ -1,4 +1,4 @@
-import { ref, computed, readonly, type Ref } from 'vue'
+import { ref, computed, readonly, watch, type Ref } from 'vue'
 import type { TreeNode } from '@/types/file-system'
 import type { OpenedFile } from '@/types/opened-file'
 import { isImageFile, isTextFile } from '@/utils/file-type'
@@ -12,21 +12,34 @@ export interface CodeEditorInstance {
 
 export interface UseFileViewerWorkspaceOptions {
   codeEditorRef: Ref<CodeEditorInstance | null>
+  initialWordWrap?: boolean
+}
+
+export interface ClosedTabSnapshot {
+  handle: FileSystemFileHandle
+  name: string
+  path: string
 }
 
 export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
-  const { codeEditorRef } = options
+  const { codeEditorRef, initialWordWrap = true } = options
   const { message: toastMessage, show: showToast } = useToast()
 
+  const rootDirectoryHandle = ref<FileSystemDirectoryHandle | null>(null)
   const rootNodes = ref<TreeNode[] | null>(null)
   const rootName = ref('')
   const openedFiles = ref<OpenedFile[]>([])
   const activeFileId = ref<number | null>(null)
   const error = ref('')
   const loading = ref(false)
-  const wordWrap = ref(true)
+  const wordWrap = ref(initialWordWrap)
+  const recentlyClosed = ref<ClosedTabSnapshot[]>([])
 
   let nextFileId = 0
+
+  watch(wordWrap, (v) => {
+    localStorage.setItem('fv.wordWrap', v ? '1' : '0')
+  })
 
   const activeFile = computed(
     () => openedFiles.value.find((f) => f.id === activeFileId.value) ?? null,
@@ -51,12 +64,37 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
       const handle = await (
         window as Window & { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }
       ).showDirectoryPicker()
+      rootDirectoryHandle.value = handle
       rootName.value = handle.name
       rootNodes.value = await loadDirectoryChildren(handle)
       clearOpenedFiles()
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
         error.value = (e as Error).message || '选择失败'
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function selectSingleFile() {
+    if (!('showOpenFilePicker' in window)) {
+      error.value = '当前浏览器不支持选择单个文件'
+      return
+    }
+    error.value = ''
+    loading.value = true
+    try {
+      const handles = await (
+        window as Window & {
+          showOpenFilePicker: (o?: object) => Promise<FileSystemFileHandle[]>
+        }
+      ).showOpenFilePicker({ multiple: false })
+      const h = handles[0]
+      if (h) await openFileFromHandle(h, h.name, h.name)
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') {
+        error.value = (e as Error).message || '打开文件失败'
       }
     } finally {
       loading.value = false
@@ -121,17 +159,27 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
     }
   }
 
-  async function closeFile(id: number, e?: MouseEvent) {
+  function pushRecentlyClosed(file: OpenedFile) {
+    recentlyClosed.value = [
+      { handle: file.handle, name: file.name, path: file.path },
+      ...recentlyClosed.value.filter(
+        (s) => !(s.handle === file.handle && s.path === file.path),
+      ),
+    ].slice(0, 15)
+  }
+
+  async function closeFile(id: number, e?: MouseEvent): Promise<boolean> {
     e?.stopPropagation()
     const idx = openedFiles.value.findIndex((f) => f.id === id)
     const file = openedFiles.value[idx]
-    if (idx < 0 || !file) return
+    if (idx < 0 || !file) return false
 
     if (file.isDirty) {
-      if (!confirm(`${file.name} 有未保存的修改，是否保存？`)) return
+      if (!confirm(`${file.name} 有未保存的修改，是否保存？`)) return false
       if (activeFileId.value !== id) activeFileId.value = id
       await saveFile()
     }
+    pushRecentlyClosed(file)
     if (file.imageUrl) URL.revokeObjectURL(file.imageUrl)
 
     openedFiles.value = openedFiles.value.filter((f) => f.id !== id)
@@ -139,6 +187,53 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
       const remaining = openedFiles.value
       activeFileId.value = remaining[idx]?.id ?? remaining[idx - 1]?.id ?? null
     }
+    return true
+  }
+
+  async function closeOtherTabs(keepId: number) {
+    const ids = openedFiles.value.filter((f) => f.id !== keepId).map((f) => f.id)
+    for (const id of ids) {
+      const ok = await closeFile(id)
+      if (!ok) break
+    }
+  }
+
+  async function closeTabsToTheRight(anchorId: number) {
+    const idx = openedFiles.value.findIndex((f) => f.id === anchorId)
+    if (idx < 0) return
+    const toClose = openedFiles.value.slice(idx + 1).map((f) => f.id)
+    for (const id of toClose) {
+      const ok = await closeFile(id)
+      if (!ok) break
+    }
+  }
+
+  function reorderTabs(fromIndex: number, toIndex: number) {
+    const arr = [...openedFiles.value]
+    if (
+      fromIndex < 0 ||
+      fromIndex >= arr.length ||
+      toIndex < 0 ||
+      toIndex >= arr.length ||
+      fromIndex === toIndex
+    ) {
+      return
+    }
+    const removed = arr.splice(fromIndex, 1)
+    const item = removed[0]
+    if (!item) return
+    arr.splice(toIndex, 0, item)
+    openedFiles.value = arr
+  }
+
+  async function restoreLastClosed() {
+    const snap = recentlyClosed.value.shift()
+    if (!snap) {
+      showToast('没有可恢复的关闭标签')
+      return
+    }
+    await openFileFromHandle(snap.handle, snap.name, snap.path)
+    showToast(`已重新打开 ${snap.name}`)
   }
 
   function canEdit(file: OpenedFile): boolean {
@@ -194,7 +289,11 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
     activeFileId.value = id
   }
 
-  async function onSelectFile(handle: FileSystemFileHandle, name: string, path: string) {
+  async function openFileFromHandle(
+    handle: FileSystemFileHandle,
+    name: string,
+    path: string,
+  ) {
     error.value = ''
 
     const existing = openedFiles.value.find((f) => f.handle === handle)
@@ -226,7 +325,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
     loading.value = true
     const id = nextFileId++
     try {
-      const file = await handle.getFile()
+      const fileBlob = await handle.getFile()
       if (isImageFile(name)) {
         const item: OpenedFile = {
           id,
@@ -234,7 +333,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
           path,
           type: 'image',
           textContent: '',
-          imageUrl: URL.createObjectURL(file),
+          imageUrl: URL.createObjectURL(fileBlob),
           handle,
           isEditing: false,
           isDirty: false,
@@ -243,7 +342,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
         openedFiles.value = [...openedFiles.value, item]
         activeFileId.value = id
       } else {
-        const textContent = await file.text()
+        const textContent = await fileBlob.text()
         const item: OpenedFile = {
           id,
           name,
@@ -266,9 +365,13 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
     }
   }
 
+  async function onSelectFile(handle: FileSystemFileHandle, name: string, path: string) {
+    await openFileFromHandle(handle, name, path)
+  }
+
   return {
     toastMessage,
-    // 文件树懒加载会原地改 expanded / children，不能包 readonly（会拦深层赋值且不更新视图）
+    rootDirectoryHandle: readonly(rootDirectoryHandle),
     rootNodes,
     rootName: readonly(rootName),
     openedFiles: readonly(openedFiles),
@@ -277,13 +380,19 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
     loading: readonly(loading),
     wordWrap: readonly(wordWrap),
     activeFile,
+    recentlyClosed: readonly(recentlyClosed),
     selectFolder,
+    selectSingleFile,
     reloadFile,
     copyPath,
     toggleWordWrap,
     toggleFind,
     downloadImage,
     closeFile,
+    closeOtherTabs,
+    closeTabsToTheRight,
+    reorderTabs,
+    restoreLastClosed,
     canEdit,
     startEdit,
     saveFile,

@@ -24,8 +24,10 @@ const props = withDefaults(
     filename: string
     readOnly?: boolean
     wordWrap?: boolean
+    /** false 时使用浅色编辑区（与亮色主题搭配） */
+    editorDark?: boolean
   }>(),
-  { readOnly: false, wordWrap: false }
+  { readOnly: false, wordWrap: false, editorDark: true }
 )
 
 const emit = defineEmits<{
@@ -81,7 +83,7 @@ function getExtensions(filename: string) {
     basicSetup,
     search(),
     EditorState.phrases.of(chinesePhrases),
-    oneDark,
+    ...(props.editorDark ? [oneDark] : []),
     ...(langSupport ? [langSupport] : []),
     ...(props.wordWrap ? [EditorView.lineWrapping] : []),
   ]
@@ -120,9 +122,19 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => [props.modelValue, props.filename, props.readOnly, props.wordWrap] as const,
-  ([newVal, newFile, newReadOnly, newWrap], [oldVal, oldFile, oldReadOnly, oldWrap]) => {
-    if (view && (newFile !== oldFile || newReadOnly !== oldReadOnly || newWrap !== oldWrap)) {
+  () =>
+    [props.modelValue, props.filename, props.readOnly, props.wordWrap, props.editorDark] as const,
+  (
+    [newVal, newFile, newReadOnly, newWrap, newDark],
+    [oldVal, oldFile, oldReadOnly, oldWrap, oldDark],
+  ) => {
+    if (
+      view &&
+      (newFile !== oldFile ||
+        newReadOnly !== oldReadOnly ||
+        newWrap !== oldWrap ||
+        newDark !== oldDark)
+    ) {
       view.destroy()
       createEditor()
     } else if (view && newVal !== oldVal && view.state.doc.toString() !== newVal) {
@@ -146,7 +158,11 @@ defineExpose({ toggleSearch })
 </script>
 
 <template>
-  <div ref="containerRef" class="code-editor"></div>
+  <div
+    ref="containerRef"
+    class="code-editor"
+    :class="{ 'cm-light': !editorDark }"
+  ></div>
 </template>
 
 <style scoped>
@@ -165,5 +181,14 @@ defineExpose({ toggleSearch })
   min-height: 200px;
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
+}
+
+.code-editor.cm-light :deep(.cm-editor) {
+  background: var(--color-background);
+}
+
+.code-editor.cm-light :deep(.cm-gutters) {
+  background: var(--color-background-mute);
+  border-right-color: var(--color-border);
 }
 </style>

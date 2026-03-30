@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import FileTreeItem from './FileTreeItem.vue'
 import type { TreeNode, DirNode } from '@/types/file-system'
+import { loadDirectoryChildren } from '@/utils/load-directory-children'
+import { nodeVisibleInFilter } from '@/utils/tree-filter'
 
 const props = defineProps<{
   node: TreeNode
   depth: number
+  filterQuery: string
+  highlightPath: string | null
 }>()
 
 const emit = defineEmits<{
@@ -13,6 +18,12 @@ const emit = defineEmits<{
 
 const loading = ref(false)
 
+const visible = computed(() => nodeVisibleInFilter(props.node, props.filterQuery))
+
+const isHighlighted = computed(
+  () => props.highlightPath != null && props.node.path === props.highlightPath,
+)
+
 async function loadChildren(dir: DirNode) {
   if (dir.children !== null) {
     dir.expanded = !dir.expanded
@@ -20,31 +31,7 @@ async function loadChildren(dir: DirNode) {
   }
   loading.value = true
   try {
-    const children: TreeNode[] = []
-    for await (const entry of dir.handle.values()) {
-      if (entry.kind === 'directory') {
-        children.push({
-          name: entry.name,
-          path: `${dir.path}/${entry.name}`,
-          kind: 'directory',
-          handle: entry,
-          expanded: false,
-          children: null,
-        })
-      } else {
-        children.push({
-          name: entry.name,
-          path: `${dir.path}/${entry.name}`,
-          kind: 'file',
-          handle: entry,
-        })
-      }
-    }
-    children.sort((a, b) => {
-      if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
-    dir.children = children
+    dir.children = await loadDirectoryChildren(dir.handle, dir.path)
     dir.expanded = true
   } finally {
     loading.value = false
@@ -57,11 +44,13 @@ function onFileClick(handle: FileSystemFileHandle, name: string, path: string) {
 </script>
 
 <template>
-  <div class="tree-node">
+  <div v-if="visible" class="tree-node">
     <div
       v-if="node.kind === 'directory'"
       class="tree-item dir"
+      :class="{ highlighted: isHighlighted }"
       :style="{ paddingLeft: `${depth * 16 + 8}px` }"
+      :data-tree-path="node.path"
       @click="loadChildren(node)"
     >
       <span class="expand-icon">{{ node.expanded ? '▼' : '▶' }}</span>
@@ -72,7 +61,9 @@ function onFileClick(handle: FileSystemFileHandle, name: string, path: string) {
     <div
       v-else
       class="tree-item file"
+      :class="{ highlighted: isHighlighted }"
       :style="{ paddingLeft: `${depth * 16 + 8}px` }"
+      :data-tree-path="node.path"
       @click="onFileClick(node.handle, node.name, node.path)"
     >
       <span class="expand-icon placeholder"></span>
@@ -85,6 +76,8 @@ function onFileClick(handle: FileSystemFileHandle, name: string, path: string) {
         :key="child.path"
         :node="child"
         :depth="depth + 1"
+        :filter-query="filterQuery"
+        :highlight-path="highlightPath"
         @select-file="(h, n, p) => emit('selectFile', h, n, p)"
       />
     </template>
@@ -104,6 +97,11 @@ function onFileClick(handle: FileSystemFileHandle, name: string, path: string) {
 
 .tree-item:hover {
   background: var(--color-border-hover);
+}
+
+.tree-item.highlighted {
+  background: hsla(160, 100%, 37%, 0.2);
+  outline: 1px solid hsla(160, 100%, 37%, 0.45);
 }
 
 .tree-item.dir {
