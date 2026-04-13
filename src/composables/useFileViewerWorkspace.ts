@@ -1,4 +1,5 @@
 import { ref, computed, readonly, watch, type Ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { TreeNode } from '@/types/file-system'
 import type { OpenedFile } from '@/types/opened-file'
 import { isImageFile, isTextFile } from '@/utils/file-type'
@@ -23,6 +24,7 @@ export interface ClosedTabSnapshot {
 
 export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
   const { codeEditorRef, initialWordWrap = true } = options
+  const { t } = useI18n()
   const { message: toastMessage, show: showToast } = useToast()
 
   const rootDirectoryHandle = ref<FileSystemDirectoryHandle | null>(null)
@@ -55,7 +57,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
 
   async function selectFolder() {
     if (!('showDirectoryPicker' in window)) {
-      error.value = '当前浏览器不支持文件夹选择，请使用 Chrome 或 Edge'
+      error.value = t('errors.folderPickerUnsupported')
       return
     }
     error.value = ''
@@ -70,7 +72,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
       clearOpenedFiles()
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
-        error.value = (e as Error).message || '选择失败'
+        error.value = (e as Error).message || t('errors.selectFailed')
       }
     } finally {
       loading.value = false
@@ -79,7 +81,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
 
   async function selectSingleFile() {
     if (!('showOpenFilePicker' in window)) {
-      error.value = '当前浏览器不支持选择单个文件'
+      error.value = t('errors.filePickerUnsupported')
       return
     }
     error.value = ''
@@ -94,7 +96,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
       if (h) await openFileFromHandle(h, h.name, h.name)
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
-        error.value = (e as Error).message || '打开文件失败'
+        error.value = (e as Error).message || t('errors.openFailed')
       }
     } finally {
       loading.value = false
@@ -103,8 +105,8 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
 
   async function reloadFile() {
     const file = activeFile.value
-    if (!file) return
-    if (file.isDirty && !confirm('有未保存的修改，重新加载将丢失。是否继续？')) return
+    if (!file || file.unsupportedBinary) return
+    if (file.isDirty && !confirm(t('dialog.reloadUnsaved'))) return
 
     error.value = ''
     loading.value = true
@@ -119,9 +121,9 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
         URL.revokeObjectURL(file.imageUrl)
         file.imageUrl = URL.createObjectURL(f)
       }
-      showToast('已重新加载')
+      showToast(t('toast.reloaded'))
     } catch (e) {
-      error.value = (e as Error).message || '重新加载失败'
+      error.value = (e as Error).message || t('errors.reloadFailed')
     } finally {
       loading.value = false
     }
@@ -132,9 +134,9 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
     if (!file) return
     try {
       await navigator.clipboard.writeText(file.path)
-      showToast('已复制路径')
+      showToast(t('toast.pathCopied'))
     } catch {
-      error.value = '复制失败'
+      error.value = t('errors.copyFailed')
     }
   }
 
@@ -155,7 +157,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
       a.download = file.name
       a.click()
     } catch {
-      error.value = '下载失败'
+      error.value = t('errors.downloadFailed')
     }
   }
 
@@ -175,7 +177,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
     if (idx < 0 || !file) return false
 
     if (file.isDirty) {
-      if (!confirm(`${file.name} 有未保存的修改，是否保存？`)) return false
+      if (!confirm(t('dialog.closeSave', { name: file.name }))) return false
       if (activeFileId.value !== id) activeFileId.value = id
       await saveFile()
     }
@@ -229,15 +231,15 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
   async function restoreLastClosed() {
     const snap = recentlyClosed.value.shift()
     if (!snap) {
-      showToast('没有可恢复的关闭标签')
+      showToast(t('toast.noClosedTabs'))
       return
     }
     await openFileFromHandle(snap.handle, snap.name, snap.path)
-    showToast(`已重新打开 ${snap.name}`)
+    showToast(t('toast.reopened', { name: snap.name }))
   }
 
   function canEdit(file: OpenedFile): boolean {
-    return file.type === 'text' && !file.textContent.startsWith('[无法预览]')
+    return file.type === 'text' && !file.unsupportedBinary
   }
 
   function startEdit() {
@@ -259,14 +261,14 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
       file.originalContent = file.textContent
       file.isEditing = false
     } catch (e) {
-      error.value = (e as Error).message || '保存失败'
+      error.value = (e as Error).message || t('errors.saveFailed')
     }
   }
 
   function cancelEdit() {
     const file = activeFile.value
     if (!file || !file.isEditing) return
-    if (file.isDirty && !confirm('放弃未保存的修改？')) return
+    if (file.isDirty && !confirm(t('dialog.cancelEdit'))) return
     file.textContent = file.originalContent
     file.isDirty = false
     file.isEditing = false
@@ -283,7 +285,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
     if (id === activeFileId.value) return
     const file = openedFiles.value.find((f) => f.id === activeFileId.value)
     if (file?.isDirty) {
-      if (!confirm('当前文件有未保存的修改，是否保存？')) return
+      if (!confirm(t('dialog.switchSave'))) return
       await saveFile()
     }
     activeFileId.value = id
@@ -304,18 +306,18 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
 
     if (!isTextFile(name) && !isImageFile(name)) {
       const id = nextFileId++
-      const textContent = `[无法预览] ${name}`
       const item: OpenedFile = {
         id,
         name,
         path,
         type: 'text',
-        textContent,
+        textContent: '',
         imageUrl: null,
         handle,
         isEditing: false,
         isDirty: false,
-        originalContent: textContent,
+        originalContent: '',
+        unsupportedBinary: true,
       }
       openedFiles.value = [...openedFiles.value, item]
       activeFileId.value = id
@@ -359,7 +361,7 @@ export function useFileViewerWorkspace(options: UseFileViewerWorkspaceOptions) {
         activeFileId.value = id
       }
     } catch (e) {
-      error.value = (e as Error).message || '读取失败'
+      error.value = (e as Error).message || t('errors.readFailed')
     } finally {
       loading.value = false
     }

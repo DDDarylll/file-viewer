@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { OpenedFile } from '@/types/opened-file'
+
+const { t } = useI18n()
 
 defineProps<{
   files: ReadonlyArray<OpenedFile>
@@ -127,9 +130,15 @@ function onRestoreClosed() {
         :style="{ left: menuX + 'px', top: menuY + 'px' }"
         @mousedown.stop
       >
-        <button type="button" class="menu-row" @click="onCloseOthers(menuOpenId!)">关闭其他</button>
-        <button type="button" class="menu-row" @click="onCloseToRight(menuOpenId!)">关闭右侧</button>
-        <button type="button" class="menu-row" @click="onRestoreClosed">恢复最近关闭</button>
+        <button type="button" class="menu-row" @click="onCloseOthers(menuOpenId!)">
+          {{ t('tabs.closeOthers') }}
+        </button>
+        <button type="button" class="menu-row" @click="onCloseToRight(menuOpenId!)">
+          {{ t('tabs.closeToRight') }}
+        </button>
+        <button type="button" class="menu-row" @click="onRestoreClosed">
+          {{ t('tabs.restoreClosed') }}
+        </button>
       </div>
     </Teleport>
   </div>

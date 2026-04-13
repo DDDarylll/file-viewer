@@ -14,9 +14,10 @@
 - **文本预览与编辑**：CodeMirror 6 语法高亮、查找、自动换行；可进入编辑模式并**写回磁盘**
 - **Markdown 预览**：`.md` / `.markdown` 可开启**左右分屏预览**（`marked` 渲染 + `DOMPurify` 消毒 HTML）
 - **图片预览**：常见图片格式预览与下载
-- **可调侧栏**：拖拽调整文件树区域宽度
-- **主题**：浅色 / 深色 / 跟随系统，顶栏一键循环切换
-- **路径复制、重新加载**等辅助操作
+- **可调侧栏**：拖拽调整文件树区域宽度，支持一键折叠/展开目录树
+- **主题与语言**：顶栏菜单切换浅色 / 深色 / 跟随系统，以及中英文界面
+- **全屏切换**：顶栏一键进入/退出页面全屏
+- **图标化工具栏**：编辑、保存、取消、重载、复制路径、查找、自动换行、MD 分屏、下载等均为 icon button（带 tooltip）
 
 ### 文本编辑器（CodeMirror）
 
@@ -32,6 +33,7 @@
 | 键 | 说明 |
 |----|------|
 | `fv.sidebarWidth` | 侧栏宽度（约 200–480） |
+| `fv.sidebarCollapsed` | 目录树折叠/展开状态 |
 | `fv.wordWrap` | 自动换行开/关 |
 | `fv.theme` | `system` / `light` / `dark` |
 | `fv.markdownPreview` | Markdown 分屏预览开/关 |
@@ -82,10 +84,10 @@ src/
 ├── components/
 │   ├── FileViewer/
 │   │   └── FileViewer.vue        # 主布局：侧栏 + 标签 + 编辑器/图片/Markdown
-│   ├── AppHeader/                # 顶栏：选目录、打开文件、主题、加载态与错误
+│   ├── AppHeader/                # 顶栏：选目录、打开文件、语言、主题、全屏、加载态与错误
 │   ├── FileTree/                 # 文件树、过滤与仓库内文件名搜索
 │   ├── FileTabs/                 # 标签：拖拽、右键菜单
-│   ├── EditorToolbar/            # 工具栏：保存、编辑、MD 预览、重载等
+│   ├── EditorToolbar/            # 工具栏：icon button（保存、编辑、MD 预览、重载等）
 │   ├── CodeEditor/               # CodeMirror 封装
 │   ├── MarkdownPreview/          # Markdown 渲染预览
 │   ├── ImageViewer/

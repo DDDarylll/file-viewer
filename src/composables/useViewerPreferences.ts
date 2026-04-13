@@ -1,7 +1,9 @@
 import { watch, type Ref } from 'vue'
+import { writeLocale, type AppLocale } from '@/locale-preference'
 
 const KEYS = {
   sidebarWidth: 'fv.sidebarWidth',
+  sidebarCollapsed: 'fv.sidebarCollapsed',
   wordWrap: 'fv.wordWrap',
   theme: 'fv.theme',
   markdownPreview: 'fv.markdownPreview',
@@ -51,17 +53,25 @@ export function isEffectiveDark(mode: ThemeMode): boolean {
 
 export function useViewerPreferences() {
   const sidebarWidth = readNumber(KEYS.sidebarWidth, 200, 480, 280)
+  const sidebarCollapsed = readBool(KEYS.sidebarCollapsed, false)
   const wordWrap = readBool(KEYS.wordWrap, true)
   const theme = readTheme()
   const markdownPreviewSplit = readMarkdownPreview()
 
   return {
     initialSidebarWidth: sidebarWidth,
+    initialSidebarCollapsed: sidebarCollapsed,
     initialWordWrap: wordWrap,
     initialTheme: theme,
     initialMarkdownPreviewSplit: markdownPreviewSplit,
+    persistLocale(locale: AppLocale) {
+      writeLocale(locale)
+    },
     persistSidebarWidth(width: number) {
       localStorage.setItem(KEYS.sidebarWidth, String(width))
+    },
+    persistSidebarCollapsed(value: boolean) {
+      localStorage.setItem(KEYS.sidebarCollapsed, value ? '1' : '0')
     },
     persistWordWrap(value: boolean) {
       localStorage.setItem(KEYS.wordWrap, value ? '1' : '0')

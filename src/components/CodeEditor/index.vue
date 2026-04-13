@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState, type Extension } from '@codemirror/state'
 import { StreamLanguage } from '@codemirror/language'
@@ -33,6 +34,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+const { locale } = useI18n()
 
 const containerRef = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
@@ -82,7 +85,7 @@ function getExtensions(filename: string) {
   const extensions: Extension[] = [
     basicSetup,
     search(),
-    EditorState.phrases.of(chinesePhrases),
+    EditorState.phrases.of(locale.value === 'zh-CN' ? chinesePhrases : {}),
     ...(props.editorDark ? [oneDark] : []),
     ...(langSupport ? [langSupport] : []),
     ...(props.wordWrap ? [EditorView.lineWrapping] : []),
@@ -123,17 +126,25 @@ onBeforeUnmount(() => {
 
 watch(
   () =>
-    [props.modelValue, props.filename, props.readOnly, props.wordWrap, props.editorDark] as const,
+    [
+      props.modelValue,
+      props.filename,
+      props.readOnly,
+      props.wordWrap,
+      props.editorDark,
+      locale.value,
+    ] as const,
   (
-    [newVal, newFile, newReadOnly, newWrap, newDark],
-    [oldVal, oldFile, oldReadOnly, oldWrap, oldDark],
+    [newVal, newFile, newReadOnly, newWrap, newDark, newLocale],
+    [oldVal, oldFile, oldReadOnly, oldWrap, oldDark, oldLocale],
   ) => {
     if (
       view &&
       (newFile !== oldFile ||
         newReadOnly !== oldReadOnly ||
         newWrap !== oldWrap ||
-        newDark !== oldDark)
+        newDark !== oldDark ||
+        newLocale !== oldLocale)
     ) {
       view.destroy()
       createEditor()

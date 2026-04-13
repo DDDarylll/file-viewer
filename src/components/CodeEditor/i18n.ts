@@ -1,4 +1,4 @@
-/** CodeMirror 中文文案 */
+/** CodeMirror UI phrases for Chinese locale (English uses built-in defaults). */
 export const chinesePhrases: Record<string, string> = {
   'Control character': '控制字符',
   close: '关闭',

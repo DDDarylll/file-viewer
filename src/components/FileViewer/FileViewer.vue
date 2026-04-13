@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+import type { AppLocale } from '@/locale-preference'
 import FileTree from '../FileTree/index.vue'
 import CodeEditor from '../CodeEditor/index.vue'
 import AppHeader from '../AppHeader/index.vue'
@@ -23,6 +25,7 @@ import { expandTreeToPath } from '@/utils/tree-expand'
 
 const codeEditorRef = ref<CodeEditorInstance | null>(null)
 
+const { t, locale } = useI18n()
 const prefs = useViewerPreferences()
 applyThemeToDocument(prefs.initialTheme)
 const themeMode = ref<ThemeMode>(prefs.initialTheme)
@@ -38,20 +41,35 @@ const { width: sidebarWidth, onResizeStart } = useResizableSidebar({
 
 watchSidebarWidthPersist(sidebarWidth, prefs.persistSidebarWidth)
 
+const sidebarCollapsed = ref(prefs.initialSidebarCollapsed)
+
+function toggleSidebarCollapsed() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  prefs.persistSidebarCollapsed(sidebarCollapsed.value)
+}
+
+const sidebarAsideStyle = computed(() =>
+  sidebarCollapsed.value
+    ? { width: '36px' }
+    : { width: `${sidebarWidth.value}px` },
+)
+
 const editorDark = computed(() => {
   if (themeMode.value === 'dark') return true
   if (themeMode.value === 'light') return false
   return systemDark.value
 })
 
-const themeLabel = computed(() => {
-  const labels: Record<ThemeMode, string> = {
-    system: '主题：跟随系统',
-    light: '主题：浅色',
-    dark: '主题：深色',
-  }
-  return labels[themeMode.value]
-})
+function setLocale(code: AppLocale) {
+  locale.value = code
+  prefs.persistLocale(code)
+}
+
+function syncDocumentLocale() {
+  const l = locale.value as AppLocale
+  document.documentElement.lang = l === 'zh-CN' ? 'zh-CN' : 'en'
+  document.title = t('app.title')
+}
 
 let mql: MediaQueryList | null = null
 function onSystemSchemeChange(e: MediaQueryListEvent) {
@@ -60,21 +78,20 @@ function onSystemSchemeChange(e: MediaQueryListEvent) {
 
 onMounted(() => {
   applyThemeToDocument(themeMode.value)
+  syncDocumentLocale()
   mql = window.matchMedia('(prefers-color-scheme: dark)')
   mql.addEventListener('change', onSystemSchemeChange)
 })
+
+watch(locale, syncDocumentLocale)
 
 onBeforeUnmount(() => {
   mql?.removeEventListener('change', onSystemSchemeChange)
 })
 
-function cycleTheme() {
-  const order: ThemeMode[] = ['system', 'light', 'dark']
-  const i = order.indexOf(themeMode.value)
-  const idx = i >= 0 ? (i + 1) % order.length : 0
-  const next: ThemeMode = order[idx] ?? 'system'
-  themeMode.value = next
-  prefs.persistTheme(next)
+function setTheme(mode: ThemeMode) {
+  themeMode.value = mode
+  prefs.persistTheme(mode)
 }
 
 function toggleMarkdownPreview() {
@@ -145,23 +162,60 @@ watch(
       :loading="loading"
       :root-name="rootName"
       :error="error"
-      :theme-label="themeLabel"
+      :locale="locale as AppLocale"
+      :theme-mode="themeMode"
       @select-folder="selectFolder"
       @select-single-file="selectSingleFile"
-      @cycle-theme="cycleTheme"
+      @set-theme="setTheme"
+      @set-locale="setLocale"
     />
 
     <div class="main">
-      <aside class="sidebar" :style="{ width: sidebarWidth + 'px' }">
-        <FileTree
-          :root-nodes="rootNodes"
-          :root-directory-handle="rootDirectoryHandle"
-          :root-path-prefix="rootName"
-          :highlight-path="activeFile?.path ?? null"
-          @select-file="onSelectFile"
-        />
+      <aside
+        class="sidebar"
+        :class="{ 'is-collapsed': sidebarCollapsed }"
+        :style="sidebarAsideStyle"
+      >
+        <template v-if="!sidebarCollapsed">
+          <div class="sidebar-tree-wrap">
+            <FileTree
+              :root-nodes="rootNodes"
+              :root-directory-handle="rootDirectoryHandle"
+              :root-path-prefix="rootName"
+              :highlight-path="activeFile?.path ?? null"
+              :show-collapse-button="true"
+              @select-file="onSelectFile"
+              @toggle-collapse="toggleSidebarCollapsed"
+            />
+          </div>
+        </template>
+        <div v-else class="sidebar-collapsed-bar">
+          <button
+            type="button"
+            class="sidebar-icon-btn"
+            :title="t('fileView.tooltipExpandTree')"
+            :aria-label="t('fileView.expandTree')"
+            @click="toggleSidebarCollapsed"
+          >
+            <svg class="sidebar-icon-svg" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8.25 4.5l7.5 7.5-7.5 7.5"
+              />
+            </svg>
+          </button>
+        </div>
       </aside>
-      <div class="resize-handle" title="拖拽调整宽度" @mousedown="onResizeStart" />
+      <div
+        v-show="!sidebarCollapsed"
+        class="resize-handle"
+        :title="t('fileView.resizeSidebar')"
+        @mousedown="onResizeStart"
+      />
       <section class="content">
         <FileTabs
           :files="openedFiles"
@@ -177,6 +231,7 @@ watch(
           :file="activeFile"
           :word-wrap="wordWrap"
           :can-edit="canEdit"
+          :unsupported-binary="activeFile?.unsupportedBinary === true"
           :is-markdown-file="isMarkdownFile"
           :markdown-preview-split="markdownPreviewSplit"
           @start-edit="startEdit"
@@ -194,6 +249,12 @@ watch(
           :src="activeFile.imageUrl"
           :alt="activeFile.name"
         />
+        <div
+          v-else-if="activeFile?.type === 'text' && activeFile.unsupportedBinary"
+          class="file-placeholder"
+        >
+          {{ t('fileView.unsupportedFile', { name: activeFile.name }) }}
+        </div>
         <div
           v-else-if="activeFile?.type === 'text'"
           class="text-pane"
@@ -221,7 +282,11 @@ watch(
           </div>
         </div>
         <div v-else class="file-placeholder">
-          {{ activeFile ? '（空文件）' : '点击左侧文件查看内容，或使用顶部「打开文件」' }}
+          {{
+            activeFile
+              ? t('fileView.emptyFile')
+              : t('fileView.openHint')
+          }}
         </div>
       </section>
     </div>
@@ -247,12 +312,63 @@ watch(
 
 .sidebar {
   flex-shrink: 0;
-  min-width: 200px;
   border-right: 1px solid var(--color-border);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.sidebar:not(.is-collapsed) {
+  min-width: 200px;
+}
+
+.sidebar.is-collapsed {
+  min-width: 36px;
+  max-width: 36px;
+}
+
+.sidebar-tree-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-collapsed-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 4px 0;
+  background: var(--color-background);
+}
+
+.sidebar-icon-btn {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text);
+  background: var(--color-background-mute);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.sidebar-icon-btn:hover {
+  background: var(--color-border-hover);
+}
+
+.sidebar-icon-svg {
+  width: 18px;
+  height: 18px;
 }
 
 .resize-handle {
