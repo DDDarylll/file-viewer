@@ -5,6 +5,7 @@ import type { OpenedFile } from '@/types/opened-file'
 defineProps<{
   file: OpenedFile | null
   wordWrap: boolean
+  findPanelOpen?: boolean
   canEdit: (file: OpenedFile) => boolean
   unsupportedBinary?: boolean
   isMarkdownFile?: boolean
@@ -143,6 +144,7 @@ defineEmits<{
         </button>
         <button
           class="toolbar-icon-btn"
+          :class="{ active: findPanelOpen }"
           @click="$emit('toggleFind')"
           :title="t('toolbar.findTitle')"
           :aria-label="t('toolbar.find')"

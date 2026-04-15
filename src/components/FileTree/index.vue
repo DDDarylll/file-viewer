@@ -165,7 +165,7 @@ function onHitClick(hit: { handle: FileSystemFileHandle; name: string; path: str
 .filter-input {
   flex: 1;
   min-width: 0;
-  box-sizing: border-box;
+  height: var(--tree-toolbar-control-size);
   padding: 6px 10px;
   font-size: 13px;
   border: 1px solid var(--color-border);
@@ -180,9 +180,8 @@ function onHitClick(hit: { handle: FileSystemFileHandle; name: string; path: str
 }
 
 .collapse-btn {
-  box-sizing: border-box;
-  width: 32px;
-  height: 32px;
+  width: var(--tree-toolbar-control-size);
+  height: var(--tree-toolbar-control-size);
   padding: 0;
   display: inline-flex;
   align-items: center;

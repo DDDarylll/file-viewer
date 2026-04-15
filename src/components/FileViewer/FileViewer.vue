@@ -138,6 +138,11 @@ const isMarkdownFile = computed(() => {
   const n = activeFile.value?.name.toLowerCase() ?? ''
   return n.endsWith('.md') || n.endsWith('.markdown')
 })
+const findPanelOpen = ref(false)
+
+function onSearchOpenChange(open: boolean) {
+  findPanelOpen.value = open
+}
 
 watch(
   () => [activeFile.value?.path, rootNodes.value] as const,
@@ -176,19 +181,17 @@ watch(
         :class="{ 'is-collapsed': sidebarCollapsed }"
         :style="sidebarAsideStyle"
       >
-        <template v-if="!sidebarCollapsed">
-          <div class="sidebar-tree-wrap">
-            <FileTree
-              :root-nodes="rootNodes"
-              :root-directory-handle="rootDirectoryHandle"
-              :root-path-prefix="rootName"
-              :highlight-path="activeFile?.path ?? null"
-              :show-collapse-button="true"
-              @select-file="onSelectFile"
-              @toggle-collapse="toggleSidebarCollapsed"
-            />
-          </div>
-        </template>
+        <div v-if="!sidebarCollapsed" class="sidebar-tree-wrap">
+          <FileTree
+            :root-nodes="rootNodes"
+            :root-directory-handle="rootDirectoryHandle"
+            :root-path-prefix="rootName"
+            :highlight-path="activeFile?.path ?? null"
+            :show-collapse-button="true"
+            @select-file="onSelectFile"
+            @toggle-collapse="toggleSidebarCollapsed"
+          />
+        </div>
         <div v-else class="sidebar-collapsed-bar">
           <button
             type="button"
@@ -230,6 +233,7 @@ watch(
         <EditorToolbar
           :file="activeFile"
           :word-wrap="wordWrap"
+          :find-panel-open="findPanelOpen"
           :can-edit="canEdit"
           :unsupported-binary="activeFile?.unsupportedBinary === true"
           :is-markdown-file="isMarkdownFile"
@@ -273,6 +277,7 @@ watch(
               :word-wrap="wordWrap"
               :editor-dark="editorDark"
               @update:model-value="onEditorUpdate"
+              @search-open-change="onSearchOpenChange"
             />
             <MarkdownPreview
               v-if="markdownPreviewSplit && isMarkdownFile"
@@ -324,8 +329,8 @@ watch(
 }
 
 .sidebar.is-collapsed {
-  min-width: 36px;
-  max-width: 36px;
+  min-width: 40px;
+  max-width: 40px;
 }
 
 .sidebar-tree-wrap {
@@ -339,17 +344,16 @@ watch(
 .sidebar-collapsed-bar {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   min-height: 0;
-  padding: 4px 0;
+  padding: 8px 0;
   background: var(--color-background);
 }
 
 .sidebar-icon-btn {
-  box-sizing: border-box;
-  width: 28px;
-  height: 28px;
+  width: var(--tree-toolbar-control-size);
+  height: var(--tree-toolbar-control-size);
   padding: 0;
   display: inline-flex;
   align-items: center;

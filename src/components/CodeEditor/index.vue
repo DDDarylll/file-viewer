@@ -33,12 +33,14 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  'search-open-change': [open: boolean]
 }>()
 
 const { locale } = useI18n()
 
 const containerRef = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
+let isSearchOpen = false
 
 const LANG_MAP: Record<string, () => Extension> = {
   javascript: () => javascript(),
@@ -86,6 +88,13 @@ function getExtensions(filename: string) {
     basicSetup,
     search(),
     EditorState.phrases.of(locale.value === 'zh-CN' ? chinesePhrases : {}),
+    EditorView.updateListener.of((update) => {
+      const open = searchPanelOpen(update.state)
+      if (open !== isSearchOpen) {
+        isSearchOpen = open
+        emit('search-open-change', open)
+      }
+    }),
     ...(props.editorDark ? [oneDark] : []),
     ...(langSupport ? [langSupport] : []),
     ...(props.wordWrap ? [EditorView.lineWrapping] : []),
@@ -115,6 +124,8 @@ function createEditor() {
     state,
     parent: containerRef.value,
   })
+  isSearchOpen = searchPanelOpen(view.state)
+  emit('search-open-change', isSearchOpen)
 }
 
 onMounted(createEditor)

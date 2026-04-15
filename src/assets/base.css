@@ -32,6 +32,7 @@
 
   --color-heading: var(--vt-c-text-light-1);
   --color-text: var(--vt-c-text-light-1);
+  --tree-toolbar-control-size: 32px;
 
   --section-gap: 160px;
 }
